@@ -4,8 +4,11 @@ import { ChatBubbleLeftIcon } from "@heroicons/react/24/outline";
 import { ChangeEvent, useEffect, useState } from "react";
 import { Answer } from "../../components/Answer";
 import { EventStreamContentType, fetchEventSource } from "@microsoft/fetch-event-source";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+    const router = useRouter();
+
     const [answer, setAnswer] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
@@ -15,7 +18,7 @@ export default function Home() {
     const [chatHistory, setChatHistory] = useState<string[]>([]);
     const [canSearchForScholarships, setCanSearchForScholarship] = useState(false);
 
-    async function chat() {
+    async function chat(starting: boolean = false) {
         setIsLoading(true);
 
         if (chatInput) setChatHistory((prev) => [...prev, "[User] " + chatInput]);
@@ -26,7 +29,7 @@ export default function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 input: chatInput,
-                history: chatHistory,
+                history: starting ? getChatHistoryFromLS() : chatHistory,
             }),
             async onopen(response) {
                 if (
@@ -133,20 +136,35 @@ export default function Home() {
         }
     }
 
+    function getChatHistoryFromLS() {
+        // check for previous history
+        const previousChatHistory = window.localStorage.getItem("chat_history");
+        const prevChatHistoryArr = previousChatHistory ? JSON.parse(previousChatHistory) : [];
+        setChatHistory(prevChatHistoryArr);
+        return prevChatHistoryArr;
+    }
+
     useEffect(() => {
         // start chatting
         if (!chatStarted) {
             isChatStarted(true);
-            chat();
+            chat(true);
         }
     }, [chatStarted]);
+
+    useEffect(() => {
+        if (chatHistory.length > 0) {
+            console.log("storing chat history in local storage", chatHistory);
+            window.localStorage.setItem("chat_history", JSON.stringify(chatHistory));
+        }
+    }, [chatHistory]);
 
     return (
         <>
             <div className="container relative mx-auto max-w-5xl p-6">
                 {error && <div className="mt-4 font-semibold text-red-600">{error}</div>}
 
-                <div className="flex flex-col shadow-lg rounded-lg mt-4">
+                <div className="flex flex-col mt-4">
                     {answer && (
                         <div className="relative w-full">
                             <div
@@ -168,9 +186,9 @@ export default function Home() {
                     )}
 
                     {chatHistory.length > 1 && (
-                        <div className="relative w-full max-h-96 min-h-max overflow-y-auto">
-                            <div className="w-full flex-1 items-center rounded-lg border px-4 py-4 shadow-md">
-                                <div className="flex flex-col gap-6 text-gray-500 dark:text-gray-400">
+                        <div className="relative w-full mt-2">
+                            <div className="w-full flex-1 items-center rounded-lg border px-4 py-4 shadow-md max-h-96 min-h-max overflow-y-auto ">
+                                <div className="flex flex-col gap-6 text-gray-500 dark:text-gray-400 ">
                                     {chatHistory
                                         .slice(0, chatHistory.length - 1)
                                         .reverse()
@@ -182,7 +200,7 @@ export default function Home() {
                         </div>
                     )}
 
-                    <div className="flex items-center rounded-lg border px-4 py-2 shadow-md">
+                    <div className="flex items-center rounded-lg border px-4 py-2 shadow-md mt-2">
                         <ChatBubbleLeftIcon className="inline h-6 fill-current text-teal-700 dark:text-teal-500" />
                         <input
                             type="text"
@@ -196,6 +214,21 @@ export default function Home() {
                                 if (e.keyCode == 13) chat();
                             }}
                         />
+                    </div>
+
+                    <div className="mt-4">
+                        <div className="flex items-center justify-end">
+                            <button
+                                className="px-2 py-1 rounded-md border bg-gray-50 hover:bg-gray-100 dark:bg-teal-900 dark:text-gray-100"
+                                onClick={() => {
+                                    window.localStorage.removeItem("chat_history");
+                                    setChatHistory([]);
+                                    chat(true);
+                                }}
+                            >
+                                Start Over
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

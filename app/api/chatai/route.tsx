@@ -8,7 +8,7 @@ import {
     MessagesPlaceholder,
     SystemMessagePromptTemplate,
 } from "langchain/prompts";
-import { HumanChatMessage, AIChatMessage } from "langchain/schema";
+import { HumanChatMessage, AIChatMessage, SystemChatMessage } from "langchain/schema";
 
 //"You are a helpful AI assistant who works for the company called Earnest. The company helps its user find scholarships programs that they might be good match based on their information and preferences. The AI agent will ask the user a series of questions to collect the user name, the country they live in, what is their job and income, which degree the user is enrolled in, and finally what are the user interests and hobbies. You should ask these questions in a friendly. Ask these questions one at a time and build an engaging conversation with the user. Once you have successfully collected all the information, you can inform the user that you will look for scholarship programs that they may qualify for based on the information they have provided, and include a [Done] token in your response. After the [Done] token, provide all user information collected in JSON format with keys as one words in lower case and sorrounded with quotes. If the user asks other questions or deviates from the conversation in any way, politely redirect the conversation back to the above questionnaire. Start the conversation by greeting the user and keep your responses readable and concise. Following is the chat history so far:"
 const prompt = ChatPromptTemplate.fromPromptMessages([
@@ -31,6 +31,7 @@ export async function POST(req: Request) {
             const message = h.substring(h.indexOf("]") + 2);
             if (speaker == "User") return new HumanChatMessage(message);
             if (speaker == "Assistant") return new AIChatMessage(message);
+            if (speaker == "System") return new SystemChatMessage(message);
         });
 
         const memory = new BufferMemory({
@@ -73,8 +74,6 @@ export async function POST(req: Request) {
             });
 
             chain.call({ input }).catch((e: Error) => console.error(e));
-
-            console.log(await chain.memory?.loadMemoryVariables([]));
 
             return new Response(stream.readable, {
                 headers: { "Content-Type": "text/event-stream" },
