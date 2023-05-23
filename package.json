@@ -12,6 +12,7 @@
   "dependencies": {
     "@heroicons/react": "^2.0.18",
     "@microsoft/fetch-event-source": "^2.0.1",
+    "@pinecone-database/pinecone": "^0.1.6",
     "@supabase/supabase-js": "^2.22.0",
     "@types/node": "20.2.1",
     "@types/react": "18.2.6",
@@ -29,7 +30,16 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.9",
+    "@types/turndown": "^5.0.1",
+    "@types/url-parse": "^1.4.8",
+    "bottleneck": "^2.19.5",
+    "cheerio": "^1.0.0-rc.12",
+    "extract-urls": "^1.3.4",
+    "node-spider": "^1.4.1",
     "prompt-sync": "^4.2.0",
-    "tsx": "^3.12.7"
+    "tsx": "^3.12.7",
+    "turndown": "^7.1.2",
+    "url-parse": "^1.5.10",
+    "uuidv4": "^6.2.13"
   }
 }

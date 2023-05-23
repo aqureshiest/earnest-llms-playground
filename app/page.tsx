@@ -19,6 +19,12 @@ export default function Home() {
                     >
                         Scholarship Search - Chatbot
                     </Link>
+                    <Link
+                        href="/blog"
+                        className="p-4 border rounded-lg text-lg bg-gray-50 hover:bg-gray-100"
+                    >
+                        Tell me about Earnest
+                    </Link>
                 </div>
             </div>
         </>
