@@ -12,7 +12,6 @@ const prompt = require("prompt-sync")();
 
 export const run = async () => {
     const chat = new ChatOpenAI({
-        openAIApiKey: "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",
         temperature: 0,
     });
 
