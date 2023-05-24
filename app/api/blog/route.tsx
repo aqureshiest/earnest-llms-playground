@@ -3,7 +3,6 @@ import { OpenAI, PromptTemplate } from "langchain";
 import { LLMChain } from "langchain/chains";
 import { CallbackManager } from "langchain/callbacks";
 import {
-    answer,
     formulateQuestion,
     generateEmbeddingFor,
     getMatches,

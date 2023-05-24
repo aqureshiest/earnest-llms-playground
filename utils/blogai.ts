@@ -38,7 +38,14 @@ export async function getMatches(pinecone: PineconeClient, embedding: number[], 
         },
     });
 
-    return result.matches?.filter((res) => res.score! > 0.7);
+    const hsMatches = result.matches?.filter((res) => res.score! > 0.75);
+    const mdhs = hsMatches?.map((m) => {
+        const md = m.metadata as any;
+        return [md.url, m.score];
+    });
+    console.log(mdhs!.join(" "));
+
+    return hsMatches;
 }
 
 export async function summarize(document: string, query: string) {

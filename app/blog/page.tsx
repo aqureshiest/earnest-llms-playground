@@ -80,7 +80,7 @@ export default function Home() {
                     {chatHistory.length > 1 && (
                         <div className="relative w-full mt-2">
                             <div className="w-full flex-1 items-center rounded-lg border px-4 py-4 shadow-md max-h-96 min-h-max overflow-y-auto ">
-                                <div className="flex flex-col gap-6 text-gray-500 dark:text-gray-400 ">
+                                <div className="flex flex-col gap-6 text-gray-500">
                                     {chatHistory
                                         .slice(0, chatHistory.length - 1)
                                         .reverse()
@@ -97,11 +97,11 @@ export default function Home() {
                     )}
 
                     <div className="flex items-center rounded-lg border px-4 py-2 shadow-md mt-2">
-                        <ChatBubbleLeftIcon className="inline h-6 fill-current text-teal-700 dark:text-teal-500" />
+                        <ChatBubbleLeftIcon className="inline h-6 fill-current text-teal-700" />
                         <input
                             type="text"
                             value={chatInput}
-                            className="ml-2 w-full appearance-none border-0 p-2 text-lg text-gray-600 dark:text-gray-100 focus:outline-none focus:ring-0 md:p-4 md:text-2xl bg-transparent"
+                            className="ml-2 w-full appearance-none border-0 p-2 text-lg text-gray-600 focus:outline-none focus:ring-0 md:p-4 md:text-2xl bg-transparent"
                             placeholder="Lets chat!"
                             onChange={(e: ChangeEvent<HTMLInputElement>) =>
                                 setChatInput(e.currentTarget.value)

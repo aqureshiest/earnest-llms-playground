@@ -3,8 +3,11 @@ import { Document } from "langchain/document";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { PineconeClient, ScoredVector, Vector } from "@pinecone-database/pinecone";
 import { loadEnvConfig } from "@next/env";
-import { truncateStringByBytes } from "@/utils/utils";
+import { sliceIntoChunks, truncateStringByBytes } from "@/utils/utils";
 import { answer, generateEmbeddingFor, getMatches, summarizeMatches } from "@/utils/blogai";
+import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import Bottleneck from "bottleneck";
+import { uuid } from "uuidv4";
 
 loadEnvConfig("");
 
@@ -52,6 +55,57 @@ async function crawl() {
     return documents;
 }
 
+async function generateEmbeddings(documents: Document<Record<string, any>>[][]) {
+    const getEmbeddingAsVetor = async (doc: Document) => {
+        const embedding = await embeddings.embedQuery(doc.pageContent);
+        return {
+            id: uuid(),
+            values: embedding,
+            metadata: {
+                content: doc.pageContent,
+                text: doc.metadata.text as string,
+                url: doc.metadata.url as string,
+            },
+        } as Vector;
+    };
+
+    const embeddings = new OpenAIEmbeddings();
+
+    const limiter = new Bottleneck({
+        minTime: 50,
+    });
+
+    const rateLimitedEmbeddings = limiter.wrap(getEmbeddingAsVetor);
+    console.log("done embedding");
+
+    if (!pinecone) await initPineconeClient();
+
+    const index = pinecone!.Index("earnest-blog");
+    let vectors = [] as Vector[];
+
+    try {
+        vectors = (await Promise.all(
+            documents.flat().map((doc) => rateLimitedEmbeddings(doc))
+        )) as unknown as Vector[];
+        vectors.map((v) => console.log(v.id));
+        const chunks = sliceIntoChunks(vectors, 10);
+
+        await Promise.all(
+            chunks.map(async (chunk) =>
+                index.upsert({
+                    upsertRequest: {
+                        vectors: chunk as Vector[],
+                        namespace: "",
+                    },
+                })
+            )
+        );
+        console.log("added to pinecone");
+    } catch (e) {
+        console.log(e);
+    }
+}
+
 async function main() {
     if (!pinecone) await initPineconeClient();
 
@@ -62,25 +116,18 @@ async function main() {
 
     // generateEmbeddings(documents);
     // console.log("embeddings generated and stored in pinecone");
-    // const embedding = await generateEmbeddingForUserQuery(query);
-    // console.log("query embedding done");
-    // const matches = await getMatches(embedding, 5);
-    // console.log("got matches from pinecone", matches?.length);
+    const embedding = await generateEmbeddingFor(query);
+    console.log("query embedding done");
+    const matches = await getMatches(pinecone!, embedding, 5);
+    console.log("got matches from pinecone", matches?.length);
+
+    const md = matches![0].metadata as any;
+    console.log(md.text);
+
     // const summarizedMatches = await summarizeMatches(query, matches);
     // console.log("summarized matches done");
     // const result = await answer(query, [], summarizedMatches);
     // console.log(result);
-
-    const matches = await getMatches(
-        pinecone!,
-        await generateEmbeddingFor("where do elephants live"),
-        5
-    );
-    const m = await summarizeMatches("where do elephants live", matches);
-    console.log(m);
-
-    const result = await answer("where do elephants live", [], m);
-    console.log(result);
 
     // const history = [
     //     "[AI] Hi how are you?",
