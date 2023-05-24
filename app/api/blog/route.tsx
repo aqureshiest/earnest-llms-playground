@@ -13,6 +13,7 @@ import {
 export async function POST(req: Request) {
     const prompt =
         PromptTemplate.fromTemplate(`You are an AI agent that can only answer questions about Earnest. Answer the user question ONLY from the knowledge base below. Take into consideration the chat history. Based on the question and chat history, choose parts of the context that are most relevant and provide a final answer based on that. If the answer is not found in the context, simply respond that you do not know the answer.
+The URLs are the URLs of the pages that contain the Knowledge base. Always include them at the end of the answer as HTML links.
 
 User Question: {question}
 
@@ -22,7 +23,10 @@ Chat History:
 Knowledge base:
 {context}
 
-Provide answer in HTML and use bullet points.
+Urls:
+{urls}
+
+Provide your answer in HTML and use bullet points and paragraphs.
 
 Answer:
 `);
@@ -56,6 +60,18 @@ Answer:
         if (matches?.length == 0) {
             return new Response("Unable to find any information on this");
         }
+        const urls =
+            matches &&
+            Array.from(
+                new Set(
+                    matches.map((match) => {
+                        const metadata = match.metadata as any;
+                        const { url } = metadata;
+                        return url;
+                    })
+                )
+            );
+        console.log(urls);
 
         // lets summarize the matches
         const summarizedMatches = await summarizeMatches(question, matches);
@@ -97,7 +113,12 @@ Answer:
             });
 
             chain
-                .call({ question: question, chatHistory: history, context: summarizedMatches })
+                .call({
+                    question: question,
+                    chatHistory: history,
+                    context: summarizedMatches,
+                    urls,
+                })
                 .catch((e: Error) => console.error(e));
 
             return new Response(stream.readable, {

@@ -85,7 +85,11 @@ export default function Home() {
                                         .slice(0, chatHistory.length - 1)
                                         .reverse()
                                         .map((ch, i) => (
-                                            <div key={i}>{ch}</div>
+                                            <div
+                                                className="prose-em"
+                                                key={i}
+                                                dangerouslySetInnerHTML={{ __html: ch }}
+                                            />
                                         ))}
                                 </div>
                             </div>
@@ -97,7 +101,7 @@ export default function Home() {
                         <input
                             type="text"
                             value={chatInput}
-                            className="ml-2 w-full appearance-none border-0 p-2 text-xl text-gray-600 dark:text-gray-100 focus:outline-none focus:ring-0 md:p-4 md:text-2xl bg-transparent"
+                            className="ml-2 w-full appearance-none border-0 p-2 text-lg text-gray-600 dark:text-gray-100 focus:outline-none focus:ring-0 md:p-4 md:text-2xl bg-transparent"
                             placeholder="Lets chat!"
                             onChange={(e: ChangeEvent<HTMLInputElement>) =>
                                 setChatInput(e.currentTarget.value)
