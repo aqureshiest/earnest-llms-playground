@@ -16,10 +16,11 @@ export default function Home() {
     const [chatInput, setChatInput] = useState("");
     const [chatHistory, setChatHistory] = useState<string[]>([]);
 
-    async function ask(starting: boolean = false) {
+    async function ask() {
         setIsLoading(true);
 
-        if (chatInput) setChatHistory((prev) => [...prev, "[User] " + chatInput]);
+        if (!chatInput) return;
+        else setChatHistory((prev) => [...prev, "[User] " + chatInput]);
 
         const response: string[] = [];
         const chat = await fetchEventSource("/api/blog", {
@@ -27,7 +28,7 @@ export default function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 input: chatInput,
-                history: starting ? getChatHistoryFromLS() : chatHistory,
+                history: chatHistory,
             }),
             async onopen(response) {
                 if (
@@ -55,21 +56,6 @@ export default function Home() {
             },
         });
     }
-
-    function getChatHistoryFromLS() {
-        // check for previous history
-        const previousChatHistory = window.localStorage.getItem("chat_history");
-        const prevChatHistoryArr = previousChatHistory ? JSON.parse(previousChatHistory) : [];
-        setChatHistory(prevChatHistoryArr);
-        return prevChatHistoryArr;
-    }
-
-    useEffect(() => {
-        if (chatHistory.length > 0) {
-            console.log("storing chat history in local storage", chatHistory);
-            window.localStorage.setItem("chat_history", JSON.stringify(chatHistory));
-        }
-    }, [chatHistory]);
 
     return (
         <>
