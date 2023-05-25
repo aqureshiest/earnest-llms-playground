@@ -46,19 +46,25 @@ Answer:
         });
 
         // first formulate a better question from user prompt and chat history
+        console.time("forumate question");
         const question = await formulateQuestion(input, history);
         console.log("formulated question: " + question);
+        console.timeEnd("forumate question");
 
         // generate embedding for the formulated question
+        console.time("embedding for question");
         const embedding = await generateEmbeddingFor(question);
         console.log("generated embedding for formulated question: " + embedding[0] + "...");
+        console.timeEnd("embedding for question");
 
         // lets get matches for this question
+        console.time("getting matches");
         const matches = await getMatches(pinecone, embedding, 3);
         console.log("got matches ==> ", matches?.length);
         if (matches?.length == 0) {
             return new Response("Unable to find any information on this");
         }
+        console.timeEnd("getting matches");
         const urls =
             matches &&
             Array.from(
@@ -73,8 +79,10 @@ Answer:
         console.log(urls);
 
         // lets summarize the matches
+        console.time("summarizing");
         const summarizedMatches = await summarizeMatches(question, matches);
         console.log("matches summarized ==> ", summarizedMatches);
+        console.timeEnd("summarizing");
 
         // lets do the final query
         const streaming = req.headers.get("accept") === "text/event-stream";

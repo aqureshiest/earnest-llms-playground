@@ -1,5 +1,5 @@
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
-import { PineconeClient, ScoredVector, Vector } from "@pinecone-database/pinecone";
+import { PineconeClient, ScoredVector } from "@pinecone-database/pinecone";
 import { OpenAI, PromptTemplate } from "langchain";
 import { LLMChain } from "langchain/chains";
 import { chunkSubstr } from "./utils";
@@ -52,7 +52,7 @@ export async function summarize(document: string, query: string) {
     if (document.length == 0) return "";
 
     const prompt =
-        PromptTemplate.fromTemplate(`Summarize the following text in an attempt to answer the user question. Apply the following rules:
+        PromptTemplate.fromTemplate(`Provide a concise summary of the following text. Apply the following rules:
 - If the Text is not relevant to the User Question ,the answer should be empty string
 - The summary should be under 4000 characters
         
@@ -65,10 +65,6 @@ Answer:
     const chain = new LLMChain({
         llm: new OpenAI({
             temperature: 0,
-            maxTokens: 256,
-            topP: 1,
-            frequencyPenalty: 0,
-            presencePenalty: 0,
         }),
         prompt,
     });
@@ -81,6 +77,7 @@ Answer:
 
 export async function summarizeDocument(document: string, query: string): Promise<string> {
     if (document.length > 8000) {
+        console.log("summarizing coz length " + document.length);
         const chunks = chunkSubstr(document, 8000);
         const result = [];
         for (const chunk of chunks) {
@@ -89,13 +86,14 @@ export async function summarizeDocument(document: string, query: string): Promis
         }
         return result.join(" ");
     }
-    return await summarize(document, query);
+    console.log("no need to summarize coz length is " + document.length);
+    return document;
 }
 
 export async function summarizeMatches(query: string, matches: ScoredVector[] | undefined) {
     return Promise.all(
         matches!.map(async (match: any) => {
-            let text = match?.metadata?.text as string;
+            let text = match?.metadata?.content as string;
             text = text.replace(/(\r\n|\r|\n){2}/g, "$1").replace(/(\r\n|\r|\n){3,}/g, "$1\n");
             text = text.replaceAll("\n", " ");
 
@@ -121,10 +119,6 @@ Answer:
 `);
     const llm = new OpenAI({
         temperature: 0,
-        maxTokens: 256,
-        topP: 1,
-        frequencyPenalty: 0,
-        presencePenalty: 0,
     });
     const chain = new LLMChain({ llm, prompt });
     const answer = await chain.call({
