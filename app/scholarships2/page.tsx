@@ -187,7 +187,7 @@ export default function Home() {
 
                     {chatHistory.length > 1 && (
                         <div className="relative w-full mt-2">
-                            <div className="w-full flex-1 items-center rounded-lg border px-4 py-4 shadow-md max-h-96 min-h-max overflow-y-auto ">
+                            <div className="w-full flex-1 items-center rounded-lg border px-4 py-4 shadow-md max-h-48 min-h-max overflow-y-auto ">
                                 <div className="flex flex-col gap-6 text-gray-500">
                                     {chatHistory
                                         .slice(0, chatHistory.length - 1)
