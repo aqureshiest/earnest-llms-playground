@@ -1,97 +1,159 @@
-import { PineconeClient, ScoredVector, Vector } from "@pinecone-database/pinecone";
-import { loadEnvConfig } from "@next/env";
+import { PineconeClient } from "@pinecone-database/pinecone";
 import { OpenAI, PromptTemplate } from "langchain";
+import { LLMChain } from "langchain/chains";
+import { CallbackManager } from "langchain/callbacks";
+import {
+    formulateQuestion,
+    generateEmbeddingFor,
+    getMatches,
+    summarizeMatches,
+} from "@/utils/blogai";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { PineconeStore } from "langchain/vectorstores/pinecone";
-import { ConversationalRetrievalQAChain, LLMChain, RetrievalQAChain } from "langchain/chains";
-import { BufferMemory, ChatMessageHistory } from "langchain/memory";
-import { ChatOpenAI } from "langchain/chat_models/openai";
-import { AIChatMessage, HumanChatMessage, SystemChatMessage } from "langchain/schema";
-import { CallbackManager } from "langchain/callbacks";
-
-let pinecone: PineconeClient | null = null;
-
-async function initPineconeClient() {
-    pinecone = new PineconeClient();
-    await pinecone.init({
-        environment: process.env.PINECONE_ENVIRONMENT!,
-        apiKey: process.env.PINECONE_API_KEY!,
-    });
-    console.log("pinecone initialized");
-}
 
 export async function POST(req: Request) {
-    const { input, history } = await req.json();
-    console.log({ input, history });
+    const prompt =
+        PromptTemplate.fromTemplate(`You are a helpful AI agent who can answer questions from the knowledge base of a company called Earnest.
+- Start the conversation by greeting the user.
+- Answer the user question based on the provided context from the knowledge base and the chat history.
+- If the answer is not found in the context, do not make up an answer.
+- The URLs are the urls of the pages that contain the Knowledge base. Always include these urls at the end of the answer as HTML anchor tags
+
+User Question: {question}
+
+Chat History:
+{chatHistory}
+
+Context:
+{context}
+
+Urls:
+{urls}
+
+Provide your answer in HTML and use bullet points and paragraphs.
+
+Answer:
+`);
+
     try {
-        const pastMessages: any[] = history.map((h: string) => {
-            if (h.trim().length == 0) return;
+        const { input, history } = await req.json();
+        console.log({ input, history });
 
-            const speaker = h.substring(h.indexOf("[") + 1, h.indexOf("]"));
-            const message = h.substring(h.indexOf("]") + 2);
-            if (speaker == "User") return new HumanChatMessage(message);
-            if (speaker == "Assistant") return new AIChatMessage(message);
-            if (speaker == "System") return new SystemChatMessage(message);
+        // initialize pinecone client
+        const pinecone: PineconeClient = new PineconeClient();
+        await pinecone.init({
+            environment: process.env.PINECONE_ENVIRONMENT!,
+            apiKey: process.env.PINECONE_API_KEY!,
         });
 
-        await initPineconeClient();
+        // first formulate a better question from user prompt and chat history
+        console.time("forumate question");
+        const question = await formulateQuestion(input, history);
+        console.log("formulated question: " + question);
+        console.timeEnd("forumate question");
 
-        const pineconeIndex = pinecone!.Index("earnest-blog");
-        const embeddings = new OpenAIEmbeddings();
-        const vectorstore = await PineconeStore.fromExistingIndex(embeddings, {
-            pineconeIndex: pineconeIndex,
-            textKey: "content",
-        });
+        // generate embedding for the formulated question
+        console.time("embedding for question");
+        const embedding = await generateEmbeddingFor(question);
+        console.log("generated embedding for formulated question: " + embedding[0] + "...");
+        console.timeEnd("embedding for question");
 
-        const encoder = new TextEncoder();
-        const stream = new TransformStream();
-        const writer = stream.writable.getWriter();
+        // lets get matches for this question
+        console.time("getting matches");
+        const matches = await getMatches(pinecone, embedding, 3);
+        console.log("got matches ==> ", matches?.length);
+        if (matches?.length == 0) {
+            return new Response("Unable to find any information on this");
+        }
+        console.timeEnd("getting matches");
+        const urls =
+            matches &&
+            Array.from(
+                new Set(
+                    matches.map((match) => {
+                        const metadata = match.metadata as any;
+                        const { url } = metadata;
+                        return url;
+                    })
+                )
+            );
+        console.log(urls);
 
+        // lets summarize the matches
+        console.time("summarizing");
+        const summarizedMatches = await summarizeMatches(pinecone, question, matches);
+        console.log("matches summarized ==> ", summarizedMatches);
+        console.timeEnd("summarizing");
+
+        // lets do the final query
         const streaming = req.headers.get("accept") === "text/event-stream";
-        console.log("streaming", streaming);
+        if (streaming) {
+            const encoder = new TextEncoder();
+            const stream = new TransformStream();
+            const writer = stream.writable.getWriter();
 
-        const streamingModel = new ChatOpenAI({
-            streaming: true,
-            callbackManager: CallbackManager.fromHandlers({
-                handleLLMNewToken: async (token: string) => {
-                    await writer.ready;
-                    await writer.write(encoder.encode(`data: ${token}\n\n`));
-                },
-                handleLLMEnd: async () => {
-                    await writer.ready;
-                    await writer.close();
-                },
-                handleLLMError: async (e: Error) => {
-                    await writer.ready;
-                    await writer.abort(e);
-                },
-            }),
-        });
-        const nonStreamingModel = new ChatOpenAI({});
-        const chain = ConversationalRetrievalQAChain.fromLLM(
-            streamingModel,
-            vectorstore.asRetriever(),
-            {
-                returnSourceDocuments: false,
-                memory: new BufferMemory({
-                    memoryKey: "chat_history",
-                    inputKey: "question", // The key for the input to the chain
-                    outputKey: "text", // The key for the final conversational output of the chain
-                    returnMessages: true, // If using with a chat model
+            const llm = new OpenAI({
+                temperature: 0,
+                // maxTokens: 256,
+                // topP: 1,
+                // frequencyPenalty: 0,
+                // presencePenalty: 0,
+                streaming: true,
+                callbackManager: CallbackManager.fromHandlers({
+                    handleLLMNewToken: async (token: string) => {
+                        await writer.ready;
+                        await writer.write(encoder.encode(`data: ${token}\n\n`));
+                    },
+                    handleLLMEnd: async () => {
+                        await writer.ready;
+                        await writer.close();
+                    },
+                    handleLLMError: async (e: Error) => {
+                        await writer.ready;
+                        await writer.abort(e);
+                    },
                 }),
-                questionGeneratorChainOptions: {
-                    llm: nonStreamingModel,
-                },
-            }
-        );
+            });
 
-        chain
-            .call({ question: input, chat_history: new ChatMessageHistory(pastMessages) })
-            .catch((e: Error) => console.error(e));
+            const chain = new LLMChain({
+                prompt: prompt,
+                llm: llm,
+            });
 
-        return new Response(stream.readable, {
-            headers: { "Content-Type": "text/event-stream" },
-        });
+            chain
+                .call({
+                    question: question,
+                    chatHistory: history,
+                    context: summarizedMatches,
+                    urls: urls && urls.length ? urls : ["https://earnest.com"],
+                })
+                .catch((e: Error) => console.error(e));
+
+            return new Response(stream.readable, {
+                headers: { "Content-Type": "text/event-stream" },
+            });
+        } else {
+            const llm = new OpenAI({
+                temperature: 0,
+                // maxTokens: 256,
+                // topP: 1,
+                // frequencyPenalty: 0,
+                // presencePenalty: 0,
+            });
+            const chain = new LLMChain({
+                prompt: prompt,
+                llm: llm,
+            });
+
+            const response = await chain.call({
+                question: question,
+                chatHistory: history,
+                context: summarizedMatches,
+            });
+            return new Response(JSON.stringify(response), {
+                headers: { "Content-Type": "application/json" },
+            });
+        }
     } catch (e) {
         return new Response(JSON.stringify({ error: (e as any).message }), {
             status: 500,

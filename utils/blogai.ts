@@ -38,7 +38,7 @@ export async function getMatches(pinecone: PineconeClient, embedding: number[], 
         },
     });
 
-    const hsMatches = result.matches?.filter((res) => res.score! > 0.75);
+    const hsMatches = result.matches?.filter((res) => res.score! > 0.8);
     const mdhs = hsMatches?.map((m) => {
         const md = m.metadata as any;
         return [md.url, m.score];
@@ -87,7 +87,7 @@ export async function summarizeDocument(document: string, query: string): Promis
         return result.join(" ");
     }
     console.log("no need to summarize coz length is " + document.length);
-    return null;
+    return document;
 }
 
 export async function summarizeMatches(
@@ -95,7 +95,7 @@ export async function summarizeMatches(
     query: string,
     matches: ScoredVector[] | undefined
 ) {
-    const pineconeIndex = pinecone!.Index("earnest-blog");
+    // const pineconeIndex = pinecone!.Index("earnest-blog");
     return Promise.all(
         matches!.map(async (match: ScoredVector) => {
             let md = match?.metadata as any;
@@ -105,7 +105,7 @@ export async function summarizeMatches(
             //     return md.summary;
             // }
 
-            let text = md.text as string;
+            let text = md.content as string;
             text = text.replace(/(\r\n|\r|\n){2}/g, "$1").replace(/(\r\n|\r|\n){3,}/g, "$1\n");
             text = text.replaceAll("\n", " ");
 
