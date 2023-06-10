@@ -104,12 +104,13 @@ async function generateEmbeddings(documents: Document<Record<string, any>>[][]) 
         )) as unknown as Vector[];
 
         const v = vectors.map((v) => {
+            const md = v.metadata as any;
             return {
                 id: v.id,
-                content: v.metadata?.content,
-                text: v.metadata?.text,
-                url: v.metadata?.url,
-                title: v.metadata?.title,
+                content: md?.content,
+                text: md?.text,
+                url: md?.url,
+                title: md?.title,
             };
         });
         fs.writeFile("./data/earnestblog.json", JSON.stringify(v, null, 1), "utf-8", () =>
