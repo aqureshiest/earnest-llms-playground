@@ -19,6 +19,7 @@ export default function Home() {
     const [sampleQuestions, setSampleQuestions] = useState([
         "Who is in the executive team at Earnest",
         "What can Earnest do for me",
+        "what do other people think about Earnest",
         "explain student refinancing in simple terms",
         "What is Precision Pricing and how can it be helpful?",
     ]);
