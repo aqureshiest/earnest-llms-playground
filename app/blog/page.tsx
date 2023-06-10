@@ -16,18 +16,25 @@ export default function Home() {
     const [chatInput, setChatInput] = useState("");
     const [chatHistory, setChatHistory] = useState<string[]>([]);
 
-    async function ask() {
+    const [sampleQuestions, setSampleQuestions] = useState([
+        "Tell me about the leadership team at Earnest",
+        "What can Earnest do for me",
+        "explain student refinancing in simple terms",
+        "What is Precision Pricing and how can it be helpful?",
+    ]);
+
+    async function ask(question: string) {
         setIsLoading(true);
 
-        if (!chatInput) return;
-        else setChatHistory((prev) => [...prev, "[User] " + chatInput]);
+        // if (!chatInput) return;
+        if (question) setChatHistory((prev) => [...prev, "[User] " + question]);
 
         const response: string[] = [];
         const chat = await fetchEventSource("/api/blog", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                input: chatInput,
+                input: question,
                 history: chatHistory,
             }),
             async onopen(response) {
@@ -56,13 +63,14 @@ export default function Home() {
             },
         });
     }
+    useEffect(() => {
+        ask("");
+    }, [false]);
 
     return (
         <>
             <div className="container relative mx-auto max-w-5xl p-6">
                 {error && <div className="mt-4 font-semibold text-red-600">{error}</div>}
-
-                <h1 className="text-2xl uppercase tracking-wider">Ask me anything about Earnest</h1>
 
                 <div className="flex flex-col mt-4">
                     {answer && (
@@ -107,13 +115,27 @@ export default function Home() {
                                 setChatInput(e.currentTarget.value)
                             }
                             onKeyUp={(e: any) => {
-                                if (e.keyCode == 13) ask();
+                                if (e.keyCode == 13) ask(chatInput);
                             }}
                         />
                     </div>
 
                     <div className="mt-4">
-                        <div className="flex items-center justify-end"></div>
+                        <h2 className="font-semibold">Sample Questions</h2>
+                        {sampleQuestions.map((q) => (
+                            <div className="mt-1">
+                                <a
+                                    className="text-blue-600 hover:text-blue-700"
+                                    href="#"
+                                    onClick={() => {
+                                        // setChatInput(q);
+                                        ask(q);
+                                    }}
+                                >
+                                    {q}
+                                </a>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>

@@ -21,7 +21,7 @@ export default function Home() {
     async function chat(starting: boolean = false) {
         setIsLoading(true);
 
-        if (chatInput) setChatHistory((prev) => [...prev, "[User] " + chatInput]);
+        if (!starting && chatInput) setChatHistory((prev) => [...prev, "[User] " + chatInput]);
 
         const response: string[] = [];
         const chat = await fetchEventSource("/api/chatai", {
@@ -29,7 +29,7 @@ export default function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 input: chatInput,
-                history: starting ? getChatHistoryFromLS() : chatHistory,
+                history: starting ? [] : chatHistory,
             }),
             async onopen(response) {
                 if (
@@ -136,13 +136,13 @@ export default function Home() {
         }
     }
 
-    function getChatHistoryFromLS() {
-        // check for previous history
-        const previousChatHistory = window.localStorage.getItem("chat_history");
-        const prevChatHistoryArr = previousChatHistory ? JSON.parse(previousChatHistory) : [];
-        setChatHistory(prevChatHistoryArr);
-        return prevChatHistoryArr;
-    }
+    // function getChatHistoryFromLS() {
+    //     // check for previous history
+    //     const previousChatHistory = window.localStorage.getItem("chat_history");
+    //     const prevChatHistoryArr = previousChatHistory ? JSON.parse(previousChatHistory) : [];
+    //     setChatHistory(prevChatHistoryArr);
+    //     return prevChatHistoryArr;
+    // }
 
     useEffect(() => {
         // start chatting
@@ -221,7 +221,7 @@ export default function Home() {
                             <button
                                 className="px-2 py-1 rounded-md border bg-gray-50 hover:bg-gray-100"
                                 onClick={() => {
-                                    window.localStorage.removeItem("chat_history");
+                                    // window.localStorage.removeItem("chat_history");
                                     setChatHistory([]);
                                     chat(true);
                                 }}

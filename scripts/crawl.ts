@@ -8,6 +8,7 @@ import { answer, generateEmbeddingFor, getMatches, summarizeMatches } from "@/ut
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import Bottleneck from "bottleneck";
 import { uuid } from "uuidv4";
+import fs from "fs";
 
 loadEnvConfig("");
 
@@ -26,17 +27,26 @@ async function initPineconeClient() {
 
 async function crawl() {
     const urls = ["https://www.earnest.com/blog/"];
+    const excludes = [
+        "https://www.earnest.com/press",
+        "https://www.earnest.com/blog/archived/",
+        "https://www.earnest.com/login/",
+        "https://www.earnest.com/_/student-loans",
+        "https://www.earnest.com/_/student-loans/",
+        "https://www.earnest.com/_/student-loans/select",
+        "https://www.earnest.com/blog/student-loan-cosigner-righ/",
+    ];
 
     // Instantiate the crawler
-    const crawler = new Crawler(urls, 100, 200);
+    const crawler = new Crawler(urls, excludes, 1000, 200);
     // Start the crawler
     const pages = (await crawler.start()) as Page[];
 
     const documents = await Promise.all(
         pages.map((row) => {
             const splitter = new RecursiveCharacterTextSplitter({
-                chunkSize: 800,
-                chunkOverlap: 200,
+                chunkSize: 1000,
+                chunkOverlap: 100,
             });
             const docs = splitter.splitDocuments([
                 new Document({
@@ -44,6 +54,7 @@ async function crawl() {
                     metadata: {
                         url: row.url,
                         text: truncateStringByBytes(row.text, 35000),
+                        title: row.title,
                     },
                 }),
             ]);
@@ -51,6 +62,9 @@ async function crawl() {
         })
     );
 
+    // console.log(JSON.stringify(documents, null, 4));
+
+    console.log(documents.length);
     console.log(documents.flat().length);
     return documents;
 }
@@ -65,6 +79,7 @@ async function generateEmbeddings(documents: Document<Record<string, any>>[][]) 
                 content: doc.pageContent,
                 text: doc.metadata.text as string,
                 url: doc.metadata.url as string,
+                title: doc.metadata.title as string,
             },
         } as Vector;
     };
@@ -87,7 +102,21 @@ async function generateEmbeddings(documents: Document<Record<string, any>>[][]) 
         vectors = (await Promise.all(
             documents.flat().map((doc) => rateLimitedEmbeddings(doc))
         )) as unknown as Vector[];
-        vectors.map((v) => console.log(v.id));
+
+        const v = vectors.map((v) => {
+            return {
+                id: v.id,
+                content: v.metadata?.content,
+                text: v.metadata?.text,
+                url: v.metadata?.url,
+                title: v.metadata?.title,
+            };
+        });
+        fs.writeFile("./data/earnestblog.json", JSON.stringify(v, null, 1), "utf-8", () =>
+            console.log("done")
+        );
+
+        vectors.map((v: Vector) => console.log(v.id));
         const chunks = sliceIntoChunks(vectors, 10);
 
         await Promise.all(
@@ -109,20 +138,23 @@ async function generateEmbeddings(documents: Document<Record<string, any>>[][]) 
 async function main() {
     if (!pinecone) await initPineconeClient();
 
-    // const documents = await crawl();
-    // console.log("crawling done");
+    const documents = await crawl();
+    console.log("crawling done");
 
-    const query = "Why should I get my student loan from Earnest instead of the government?";
+    generateEmbeddings(documents);
+    console.log("embeddings done");
 
-    // generateEmbeddings(documents);
+    // await pinecone!.Index("earnest-blog").delete1({ deleteAll: true });
+
+    // const query = "tell me about the leadership team";
     // console.log("embeddings generated and stored in pinecone");
-    const embedding = await generateEmbeddingFor(query);
-    console.log("query embedding done");
-    const matches = await getMatches(pinecone!, embedding, 5);
-    console.log("got matches from pinecone", matches?.length);
+    // const embedding = await generateEmbeddingFor(query);
+    // console.log("query embedding done");
+    // const matches = await getMatches(pinecone!, embedding, 5);
+    // console.log("got matches from pinecone", matches?.length);
 
-    const md = matches![0].metadata as any;
-    console.log(md.text);
+    // const md = matches![0].metadata as any;
+    // console.log(md.text);
 
     // const summarizedMatches = await summarizeMatches(query, matches);
     // console.log("summarized matches done");

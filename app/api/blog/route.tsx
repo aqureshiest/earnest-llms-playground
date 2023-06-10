@@ -11,15 +11,18 @@ import {
 
 export async function POST(req: Request) {
     const prompt =
-        PromptTemplate.fromTemplate(`You are an AI agent that can only answer questions about Earnest. Answer the user question ONLY from the knowledge base below. Take into consideration the chat history. Based on the question and chat history, choose parts of the context that are most relevant and provide a final answer based on that. If the answer is not found in the context, simply respond that you do not know the answer.
-The URLs are the URLs of the pages that contain the Knowledge base. Always include them at the end of the answer as HTML links.
+        PromptTemplate.fromTemplate(`You are a helpful AI agent who can answer questions from the knowledge base of a company called Earnest.
+- Start the conversation by greeting the user.
+- Answer the user question based on the provided context from the knowledge base and the chat history.
+- If the answer is not found in the context, do not make up an answer.
+- The URLs are the urls of the pages that contain the Knowledge base. Always include these urls at the end of the answer as HTML anchor tags
 
 User Question: {question}
 
 Chat History:
 {chatHistory}
 
-Knowledge base:
+Context:
 {context}
 
 Urls:
@@ -34,9 +37,9 @@ Answer:
         const { input, history } = await req.json();
         console.log({ input, history });
 
-        if (input.length == 0) {
-            return new Response("no input provided");
-        }
+        let question = "",
+            summarizedMatches,
+            urls;
 
         // initialize pinecone client
         const pinecone: PineconeClient = new PineconeClient();
@@ -45,44 +48,46 @@ Answer:
             apiKey: process.env.PINECONE_API_KEY!,
         });
 
-        // first formulate a better question from user prompt and chat history
-        console.time("forumate question");
-        const question = await formulateQuestion(input, history);
-        console.log("formulated question: " + question);
-        console.timeEnd("forumate question");
+        if (input) {
+            // first formulate a better question from user prompt and chat history
+            console.time("forumate question");
+            question = await formulateQuestion(input, history);
+            console.log("formulated question: " + question);
+            console.timeEnd("forumate question");
 
-        // generate embedding for the formulated question
-        console.time("embedding for question");
-        const embedding = await generateEmbeddingFor(question);
-        console.log("generated embedding for formulated question: " + embedding[0] + "...");
-        console.timeEnd("embedding for question");
+            // generate embedding for the formulated question
+            console.time("embedding for question");
+            const embedding = await generateEmbeddingFor(question);
+            console.log("generated embedding for formulated question: " + embedding[0] + "...");
+            console.timeEnd("embedding for question");
 
-        // lets get matches for this question
-        console.time("getting matches");
-        const matches = await getMatches(pinecone, embedding, 3);
-        console.log("got matches ==> ", matches?.length);
-        if (matches?.length == 0) {
-            return new Response("Unable to find any information on this");
+            // lets get matches for this question
+            console.time("getting matches");
+            const matches = await getMatches(pinecone, embedding, 3);
+            console.log("got matches ==> ", matches?.length);
+            if (matches?.length == 0) {
+                return new Response("Unable to find any information on this");
+            }
+            console.timeEnd("getting matches");
+            urls =
+                matches &&
+                Array.from(
+                    new Set(
+                        matches.map((match) => {
+                            const metadata = match.metadata as any;
+                            const { url } = metadata;
+                            return url;
+                        })
+                    )
+                );
+            console.log(urls);
+
+            // lets summarize the matches
+            console.time("summarizing");
+            summarizedMatches = await summarizeMatches(pinecone, question, matches);
+            console.log("matches summarized ==> ", summarizedMatches.length);
+            console.timeEnd("summarizing");
         }
-        console.timeEnd("getting matches");
-        const urls =
-            matches &&
-            Array.from(
-                new Set(
-                    matches.map((match) => {
-                        const metadata = match.metadata as any;
-                        const { url } = metadata;
-                        return url;
-                    })
-                )
-            );
-        console.log(urls);
-
-        // lets summarize the matches
-        console.time("summarizing");
-        const summarizedMatches = await summarizeMatches(question, matches);
-        console.log("matches summarized ==> ", summarizedMatches);
-        console.timeEnd("summarizing");
 
         // lets do the final query
         const streaming = req.headers.get("accept") === "text/event-stream";
@@ -93,10 +98,10 @@ Answer:
 
             const llm = new OpenAI({
                 temperature: 0,
-                maxTokens: 256,
-                topP: 1,
-                frequencyPenalty: 0,
-                presencePenalty: 0,
+                // maxTokens: 256,
+                // topP: 1,
+                // frequencyPenalty: 0,
+                // presencePenalty: 0,
                 streaming: true,
                 callbackManager: CallbackManager.fromHandlers({
                     handleLLMNewToken: async (token: string) => {
@@ -124,7 +129,7 @@ Answer:
                     question: question,
                     chatHistory: history,
                     context: summarizedMatches,
-                    urls,
+                    urls: urls && urls.length ? urls : ["https://earnest.com"],
                 })
                 .catch((e: Error) => console.error(e));
 
@@ -134,10 +139,10 @@ Answer:
         } else {
             const llm = new OpenAI({
                 temperature: 0,
-                maxTokens: 256,
-                topP: 1,
-                frequencyPenalty: 0,
-                presencePenalty: 0,
+                // maxTokens: 256,
+                // topP: 1,
+                // frequencyPenalty: 0,
+                // presencePenalty: 0,
             });
             const chain = new LLMChain({
                 prompt: prompt,

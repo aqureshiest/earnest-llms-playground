@@ -2,7 +2,7 @@
 import Spider from "node-spider";
 //@ts-ignore
 import TurndownService from "turndown";
-import cheerio from "cheerio";
+import { load } from "cheerio";
 import parse from "url-parse";
 const turndownService = new TurndownService();
 
@@ -15,12 +15,19 @@ class Crawler {
     pages: Page[] = [];
     limit: number = 1000;
     urls: string[] = [];
+    excludes: string[] = [];
     spider: Spider | null = {};
     count: number = 0;
     textLengthMinimum: number = 200;
 
-    constructor(urls: string[], limit: number = 1000, textLengthMinimum: number = 200) {
+    constructor(
+        urls: string[],
+        excludes: string[] = [],
+        limit: number = 1000,
+        textLengthMinimum: number = 200
+    ) {
         this.urls = urls;
+        this.excludes = excludes;
         this.limit = limit;
         this.textLengthMinimum = textLengthMinimum;
 
@@ -30,16 +37,24 @@ class Crawler {
     }
 
     handleRequest = (doc: any) => {
-        const $ = cheerio.load(doc.res.body);
+        const $ = load(doc.res.body);
+        if (this.excludes.includes(doc.url)) return;
         $("script").remove();
         $("#hub-sidebar").remove();
         // $("header").remove();
         $("nav").remove();
+        $("svg").remove();
         $("img").remove();
+        $("style").remove();
         $("link[rel=stylesheet]").remove();
-        const title = $("h1.title").text().trim();
-        const html = $("div.entry-content").html();
-        const text = turndownService.turndown(html || "");
+        const date = $("span.post-author-and-date__date").text();
+        if (date && new Date(date).getFullYear() != 2023) {
+            return;
+        }
+        const title = $("title").text().trim();
+        const html = $("div#page").text().replace(/\s\s+/g, " ");
+        // const text = turndownService.turndown(html || "");
+        const text = html;
         console.log("crawling ", doc.url);
         const page: Page = {
             url: doc.url,

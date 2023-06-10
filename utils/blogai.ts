@@ -75,7 +75,7 @@ Answer:
     return response.text;
 }
 
-export async function summarizeDocument(document: string, query: string): Promise<string> {
+export async function summarizeDocument(document: string, query: string): Promise<string | null> {
     if (document.length > 8000) {
         console.log("summarizing coz length " + document.length);
         const chunks = chunkSubstr(document, 8000);
@@ -87,25 +87,57 @@ export async function summarizeDocument(document: string, query: string): Promis
         return result.join(" ");
     }
     console.log("no need to summarize coz length is " + document.length);
-    return document;
+    return null;
 }
 
-export async function summarizeMatches(query: string, matches: ScoredVector[] | undefined) {
+export async function summarizeMatches(
+    pinecone: PineconeClient,
+    query: string,
+    matches: ScoredVector[] | undefined
+) {
+    const pineconeIndex = pinecone!.Index("earnest-blog");
     return Promise.all(
-        matches!.map(async (match: any) => {
-            let text = match?.metadata?.content as string;
+        matches!.map(async (match: ScoredVector) => {
+            let md = match?.metadata as any;
+
+            // check if we already have the summary
+            // if (md.summary) {
+            //     return md.summary;
+            // }
+
+            let text = md.text as string;
             text = text.replace(/(\r\n|\r|\n){2}/g, "$1").replace(/(\r\n|\r|\n){3,}/g, "$1\n");
             text = text.replaceAll("\n", " ");
 
             const response = await summarizeDocument(text, query);
             return response;
+            // if (response) {
+            //     console.log("got summary, updating in pinecone");
+            //     // put the summary in pinecone so we dont have to generate it again
+            //     await pineconeIndex.update({
+            //         updateRequest: {
+            //             id: match.id,
+            //             setMetadata: {
+            //                 summary: response,
+            //             },
+            //         },
+            //     });
+            //     console.log("summary updated for ", match.id);
+            //     return response;
+            // }
+
+            // return text;
         })
     );
 }
 
 export async function answer(question: string, chatHistory: string[], context: string[]) {
     const prompt =
-        PromptTemplate.fromTemplate(`You are an AI agent that can only answer questions about Earnest. Answer the user question ONLY from the knowledge base below. Take into consideration the chat history. Based on the question and chat history, choose parts of the context that are most relevant and provide a final answer based on that. If the answer is not found in the context, simply respond that you do not know the answer.
+        PromptTemplate.fromTemplate(`You are a helpful AI agent who can answer questions from a knowledgebase.
+Based on the chat history below and the knowledge base provided, answer the user question. 
+If the answer is not found in the context, do not make up an answer.
+
+Think about why your answer is correct. Include your reasoning in the response.
 
 User Question: {question}
 
@@ -117,6 +149,7 @@ Knowledge base:
 
 Answer:
 `);
+    console.log(prompt);
     const llm = new OpenAI({
         temperature: 0,
     });
