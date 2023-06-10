@@ -23,7 +23,7 @@ async function initPineconeClient() {
 async function main() {
     await initPineconeClient();
 
-    const question = "explain to me precision pricing like im 5 yr old";
+    const question = "tell me about the leadership team at Earnest";
 
     const model = new OpenAI({ temperature: 0, maxTokens: 2000 });
     const pineconeIndex = pinecone!.Index("earnest-blog");
