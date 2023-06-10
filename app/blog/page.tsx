@@ -17,7 +17,7 @@ export default function Home() {
     const [chatHistory, setChatHistory] = useState<string[]>([]);
 
     const [sampleQuestions, setSampleQuestions] = useState([
-        "Who is in the execute team at Earnest",
+        "Who is in the executive team at Earnest",
         "What can Earnest do for me",
         "explain student refinancing in simple terms",
         "What is Precision Pricing and how can it be helpful?",
